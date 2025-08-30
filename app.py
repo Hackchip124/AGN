@@ -16,8 +16,6 @@ import os
 import PyPDF2
 import csv
 import threading
-import barcode
-from barcode.writer import ImageWriter
 
 # Page configuration
 st.set_page_config(
@@ -614,10 +612,8 @@ def create_user(username, password, full_name="", specialty="", role="", departm
     prefix = "INT" if is_intern else "AVN"
     staff_id = f"{prefix}-{datetime.datetime.now().strftime('%Y%m')}-{len(st.session_state.users):03d}"
     
-    # Generate QR code and barcode with error handling
+    # Generate QR code
     qr_code = generate_qr_code(staff_id)
-
-    
     
     st.session_state.users[username] = {
         'password': password,
@@ -636,7 +632,6 @@ def create_user(username, password, full_name="", specialty="", role="", departm
         'mentor': mentor
     }
     
-    # ... rest of the function remains the same
     st.session_state.user_status[username] = "online"
     
     # Add to interns if applicable
@@ -761,30 +756,6 @@ def generate_id_card(username):
             except Exception as e:
                 st.error(f"Error with QR code: {str(e)}")
         
-        # Draw barcode
-        if user_data.get('barcode'):
-            try:
-                barcode_data = base64.b64decode(user_data['barcode'])
-                barcode_img = Image.open(BytesIO(barcode_data))
-                
-                # Resize barcode to fit
-                barcode_width = 300
-                barcode_height = 80
-                barcode_img = barcode_img.resize((barcode_width, barcode_height))
-                
-                # Position barcode at bottom right
-                barcode_x = width - barcode_width - 50
-                barcode_y = height - 150
-                img.paste(barcode_img, (barcode_x, barcode_y))
-                
-                # Add text below barcode
-                draw.text((barcode_x + barcode_width//2, barcode_y + barcode_height + 10), 
-                         user_data.get('staff_id', ''), fill=(255, 255, 255), font=small_font, anchor="mm")
-            except Exception as e:
-                st.error(f"Error with barcode: {str(e)}")
-        
-        
-        
         # Convert to bytes
         buf = BytesIO()
         img.save(buf, format="PNG")
@@ -883,7 +854,7 @@ class QRScanner:
             return thresh
         except Exception as e:
             return image
-    
+        
     def scan_qr_code(self, image):
         try:
             current_time = time.time()
