@@ -604,6 +604,10 @@ def generate_qr_code(data):
 def generate_barcode(data):
     """Generate a barcode for the given data"""
     try:
+        if not data:
+            # Generate a placeholder if no data
+            return generate_placeholder_barcode()
+            
         # Create a Code128 barcode
         barcode_class = barcode.get_barcode_class('code128')
         barcode_image = barcode_class(data, writer=ImageWriter())
@@ -626,8 +630,42 @@ def generate_barcode(data):
         return base64.b64encode(buf.getvalue()).decode('utf-8')
     except Exception as e:
         st.error(f"Error generating barcode: {str(e)}")
-        return None
+        # Return a placeholder barcode instead of None
+        return generate_placeholder_barcode(data)
 
+def generate_placeholder_barcode(data="N/A"):
+    """Generate a placeholder barcode image when real generation fails"""
+    try:
+        # Create a simple placeholder image
+        width, height = 300, 100
+        img = Image.new('RGB', (width, height), color=(10, 25, 41))
+        draw = ImageDraw.Draw(img)
+        
+        # Draw some lines to simulate a barcode
+        for i in range(0, width, 3):
+            line_height = random.randint(20, 80)
+            draw.line([(i, (height - line_height)//2), (i, (height + line_height)//2)], 
+                     fill=(30, 144, 255), width=2)
+        
+        # Add text
+        try:
+            font = ImageFont.truetype("arial.ttf", 12)
+        except:
+            font = ImageFont.load_default()
+        
+        draw.text((width//2, height-20), f"Barcode: {data}", fill=(255, 255, 255), 
+                 font=font, anchor="mm")
+        
+        # Convert to bytes
+        buf = BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        
+        return base64.b64encode(buf.getvalue()).decode('utf-8')
+    except:
+        # Ultimate fallback - return empty string
+        return ""
+    
 def create_user(username, password, full_name="", specialty="", role="", department="", photo=None, access_level="Standard", is_intern=False, mentor=None):
     if username in st.session_state.users:
         return False, "Username already exists"
@@ -641,6 +679,14 @@ def create_user(username, password, full_name="", specialty="", role="", departm
     prefix = "INT" if is_intern else "AVN"
     staff_id = f"{prefix}-{datetime.datetime.now().strftime('%Y%m')}-{len(st.session_state.users):03d}"
     
+    # Generate QR code and barcode with error handling
+    qr_code = generate_qr_code(staff_id)
+    barcode_data = generate_barcode(staff_id)
+    
+    # If barcode generation failed, use placeholder
+    if barcode_data is None:
+        barcode_data = generate_placeholder_barcode(staff_id)
+    
     st.session_state.users[username] = {
         'password': password,
         'full_name': full_name,
@@ -650,8 +696,8 @@ def create_user(username, password, full_name="", specialty="", role="", departm
         'photo': photo_data,
         'staff_id': staff_id,
         'created_at': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        'qr_code': generate_qr_code(staff_id),
-        'barcode': generate_barcode(staff_id),
+        'qr_code': qr_code,
+        'barcode': barcode_data,  # This will never be None now
         'last_login': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         'access_level': access_level,
         'status': 'active',
@@ -659,6 +705,7 @@ def create_user(username, password, full_name="", specialty="", role="", departm
         'mentor': mentor
     }
     
+    # ... rest of the function remains the same
     st.session_state.user_status[username] = "online"
     
     # Add to interns if applicable
